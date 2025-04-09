@@ -36,6 +36,9 @@ public class MyBot implements BotInterface {
     private List<ConnectedClientConfig> enemyTeamMembers;
     private MapVisualiser visualiser;
 
+    private int tickCounter = 0;
+    private final int shootDelayTicks = 10; // alle 10 Ticks schießen
+
     public MyBot() {
         this.minAttackDistance = Float.parseFloat(propertyHandler.getProperty("bot.attack.minDistance"));
         this.maxAttackDistance = Float.parseFloat(propertyHandler.getProperty("bot.attack.maxDistance"));
@@ -44,7 +47,7 @@ public class MyBot implements BotInterface {
     public static void main(String[] args) {
         MyBot bot = new MyBot();
 
-        GameWorld.startGame(bot); // This starts the game with a LightTank, and immediately starts the game when connected
+        GameWorld.connectToServer(bot); // This starts the game with a LightTank, and immediately starts the game when connected
         // GameWorld.connectToServer(bot); // This connects to the server with a LightTank, but does not immediately start the game
     }
 
@@ -101,6 +104,7 @@ public class MyBot implements BotInterface {
     public void processTick(PublicGameWorld world) {
         Graph graph = new Graph(world.getGameConfig().mapDefinition(), false);
         LinkedList<Node> path = new LinkedList<>(); // TODO: Implement pathfinding (optimally you would only calculate this every now and then, not every tick)
+
 
         if (visualiser != null) {
             // sets the path to be visualised
@@ -159,13 +163,15 @@ public class MyBot implements BotInterface {
                     tank.rotateTurretTowards(world, enemy.transformBody().getTranslation().add(heightOffset));
 
                     if (distanceToEnemy <= this.maxAttackDistance) {
-                        // You can check if you can shoot before shooting
+                        // Check if turret is close to aimed direction (optional enhancement)
                         if (tank.canShoot(world)) {
-                            // Or also just shoot, it will return false if you can't shoot.
-                            // And by checking the world, if debug is enabled, you can print out a message.
-                            if (tank.shoot(world) && world.isDebug()) {
-                                System.out.println("Shot at enemy!");
+                            boolean didShoot = tank.shoot(world);
+                            if (didShoot && world.isDebug()) {
+                                System.out.println("Shot at " + enemy.getConnectedClientConfig(world).clientName() +
+                                        " at distance " + distanceToEnemy);
                             }
+                        } else if (world.isDebug()) {
+                            System.out.println("Can't shoot yet – still reloading or not aimed.");
                         }
                     }
                 },
@@ -227,7 +233,7 @@ public class MyBot implements BotInterface {
         TankConfig targetTankConfig = targetConfig.getTankConfig(world);
         TankConfig myTankConfig = world.getTank().getConfig(world);
         float armorOnHitSide = targetTankConfig.armor().get(hitMessageData.hitSide());
-        float myExpectedDamage = myTankConfig.projectileDamage();
+        float myExpectedDamage = myTankConfig.projectileDamage() * 100;
         float dealtDamage = hitMessageData.damageDealt();
         ClientState targetState = targetConfig.getClientState(world);
         System.out.println("Hit " + targetConfig.clientName() + " on " + hitMessageData.hitSide() + " side!");
